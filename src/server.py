@@ -1,94 +1,53 @@
 #!/usr/bin/python
 #DBAPI-2.0 spec: http://www.python.org/dev/peps/pep-0249/
-import xmlrpclib
+import sys, xmlrpclib
 from SimpleXMLRPCServer import SimpleXMLRPCServer
 
-#new code
-#import BaseHTTPServer
-#def not_insane_address_string(self):
-#    host, port = self.client_address[:2]
-#    return '%s (no getfqdn)' % host #used to call: socket.getfqdn(host)
-#BaseHTTPServer.BaseHTTPRequestHandler.address_string = \
-#    not_insane_address_string
-#end new code
+HOST, PORT = ("127.0.0.1", 8000)
 
-def is_even(n):
-	return n%2 == 0
-
-conn_cache = {}
-cur_cache = {}
+obj_cache = {}
 def db_conn(drv, *args, **kwargs):
-	print "drv:", drv
-	print "args:", args
-	print "kwargs:", kwargs
-	exec "drv=__import__('%s')" % drv
-	conn = drv.connect(*args, **kwargs)
-	conn_id = str(id(conn))
-	conn_cache[conn_id] = conn
-	return conn_id
-
-def db_commit(conn_id):
-	conn_cache[conn_id].commit()
-	return 1
-
-def db_rollback(conn_id):
-	conn_cache[conn_id].rollback()
-	return 1
-
-def db_close(conn_id):
-	conn_cache[conn_id].close()
-	del conn_cache[conn_id]
-	return 1
+    print "drv:", drv
+    print "args:", args
+    print "kwargs:", kwargs
+    #exec "drv=__import__('%s')" % drv
+    drv = __import__(drv)
+    conn = drv.connect(*args, **kwargs)
+    _id = str(id(conn))
+    obj_cache[_id] = conn
+    return _id
 
 def db_cursor(conn_id):
-	cur = conn_cache[conn_id].cursor()
-	cur_id = str(id(cur))
-	cur_cache[cur_id] = cur
-	return cur_id
+    cur = obj_cache[conn_id].cursor()
+    cur_id = str(id(cur))
+    obj_cache[cur_id] = cur
+    return cur_id
 
-def db_cur_desc(cur_id):
-	return cur_cache[cur_id].description
+def get_attr(_id, name):
+    print "get_attr:", _id, name
+    return getattr(obj_cache[_id], name)
 
-def db_cur_rowcount(cur_id):
-	return cur_cache[cur_id].rowcount
+def call_method_ret(_id, name, *args, **kwargs):
+    method = getattr(obj_cache[_id], name)
+    return method(*args, **kwargs)
 
-def db_callproc(cur_id, name, *args, **kwargs):
-	cur_cache[cur_id].callproc(name, *args, **kwargs)
-	reuturn 1
+def call_method(_id, name, *args, **kwargs):
+    method = getattr(obj_cache[_id], name)
+    method(*args, **kwargs)
+    return 0
 
-def db_execute(cur_id, *qargs):
-	cur_cache[cur_id].execute(*qargs)
-	return 1
+def main():
+    server = SimpleXMLRPCServer((HOST, PORT), allow_none=True)
+    server.register_function(db_conn,"db_conn")
+    server.register_function(db_cursor,"db_cursor")
+    server.register_function(get_attr,"get_attr")
+    server.register_function(call_method_ret,"call_method_ret")
+    server.register_function(call_method,"call_method")
+    server.serve_forever()
 
-def db_executemany(cur_id, *qargs):
-	cur_cache[cur_id].executemany(*qargs)
-	return 1
+if __name__ == '__main__':
+    if len(sys.argv>2):
+        HOST, PORT = sys.argv[1:3]
+    
 
-def db_fetchone(cur_id):
-	return cur_cache[cur_id].fetchone()
-
-def db_fetchall(cur_id):
-	return cur_cache[cur_id].fetchall()
-
-def db_fetchmany(cur_id, size):
-	return cur_cache[cur_id].fetchmany(size)
-
-def db_nextset(cur_id):
-	return cur_cache[cur_id].nextset() or 0
-
-def db_cur_close(cur_id):
-	cur_cache[cur_id].close()
-	del cur_cache[cur_id]
-	return 1
-
-server = SimpleXMLRPCServer(("127.0.0.1", 8000))
-print "Listening on port 8000..."
-
-server.register_function(is_even,"is_even")
-server.register_function(db_conn,"db_conn")
-server.register_function(db_cursor,"db_cursor")
-server.register_function(db_execute,"db_execute")
-server.register_function(db_fetchall,"db_fetchall")
-server.register_function(db_cur_close,"db_cur_close")
-server.register_function(db_close,"db_close")
-server.serve_forever()
+    main()

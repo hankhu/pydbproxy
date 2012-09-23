@@ -1,17 +1,20 @@
 #!/usr/bin/python
 
-import xmlrpclib
+from dbproxy import *
 
-proxy = xmlrpclib.ServerProxy("http://127.0.0.1:8000/")
-print "3 is even: %s" % str(proxy.is_even(3))
-print "100 is even: %s" % str(proxy.is_even(100))
+def test():
+    url = "http://127.0.0.1:8000/"
+    conn = Connection(url, "sqlite3", ":memory:")
+    cur = conn.cursor()
+    print cur
+    cur.execute("create table a(abc, def)")
+    cur.execute("insert into a values(1, 2)")
+    for i in range(100):
+            cur.execute("select * from a")
+            print cur.fetchall()
+    print cur.close()
+    print conn.close()
+    
+if __name__ == '__main__':
 
-cid = proxy.db_conn("sqlite3", ":memory:")
-cur_id = proxy.db_cursor(cid)
-proxy.db_execute(cur_id, "create table a(abc, def)")
-proxy.db_execute(cur_id, "insert into a values(1, 2)")
-for i in range(100):
-	proxy.db_execute(cur_id, "select * from a")
-	print proxy.db_fetchall(cur_id)
-print proxy.db_cur_close(cur_id)
-print proxy.db_close(cid)
+    test()
